@@ -591,6 +591,130 @@
             color: var(--text-muted);
             font-size: 1rem;
         }
+
+        /* Notes Panel Styles */
+        .notes-btn {
+            background: transparent;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .notes-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
+            transform: scale(1.1);
+        }
+
+        .notes-btn.has-note {
+            border-color: #f59e0b;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .notes-btn.open {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .notes-row td {
+            padding: 0 !important;
+            border-bottom: none !important;
+        }
+
+        .notes-panel {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .notes-panel.open {
+            grid-template-rows: 1fr;
+        }
+
+        .notes-panel-inner {
+            overflow: hidden;
+        }
+
+        .notes-panel-content {
+            padding: 14px 20px 16px 20px;
+            background: rgba(59, 130, 246, 0.04);
+            border-top: 1px solid rgba(59, 130, 246, 0.15);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .notes-panel-label {
+            font-size: 0.78rem;
+            color: var(--accent-blue);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            margin-top: 8px;
+        }
+
+        .notes-textarea {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #f3f4f6;
+            font-family: inherit;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            min-height: 64px;
+            transition: border-color 0.25s, box-shadow 0.25s;
+        }
+
+        .notes-textarea:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .notes-textarea::placeholder {
+            color: #4b5563;
+        }
+
+        .notes-save-btn {
+            background: var(--accent-blue);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            margin-top: 4px;
+        }
+
+        .notes-save-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .notes-save-btn.saved {
+            background: var(--accent-teal);
+        }
     </style>
 </head>
 <body>
@@ -699,6 +823,7 @@
                     <thead>
                         <tr>
                             <th>Ligação / Status</th>
+                            <th title="Observações" style="text-align:center;">📝 Obs.</th>
                             <th>Nicho</th>
                             <th>Nome do Negócio</th>
                             <th>Proprietário / Dono</th>
@@ -960,6 +1085,67 @@
             updateDashboardStats();
         }
 
+        // Notes localStorage helpers
+        const NOTES_KEY = 'nexthub_lead_notes';
+
+        function getAllNotes() {
+            try {
+                const data = localStorage.getItem(NOTES_KEY);
+                return data ? JSON.parse(data) : {};
+            } catch (e) { return {}; }
+        }
+
+        function getNote(businessName) {
+            return getAllNotes()[businessName] || '';
+        }
+
+        function saveNote(businessName, text) {
+            const all = getAllNotes();
+            all[businessName] = text;
+            localStorage.setItem(NOTES_KEY, JSON.stringify(all));
+        }
+
+        function toggleNotesPanel(businessName, btnEl) {
+            const safeId = escapeId(businessName);
+            const panel = document.getElementById(`notes-panel-${safeId}`);
+            const textarea = document.getElementById(`notes-textarea-${safeId}`);
+            if (!panel) return;
+            const isOpen = panel.classList.contains('open');
+            // Close all other open panels
+            document.querySelectorAll('.notes-panel.open').forEach(p => {
+                if (p !== panel) {
+                    p.classList.remove('open');
+                    const otherSafeId = p.id.replace('notes-panel-', '');
+                    const otherBtn = document.getElementById(`notes-btn-${otherSafeId}`);
+                    if (otherBtn) otherBtn.classList.remove('open');
+                }
+            });
+            panel.classList.toggle('open', !isOpen);
+            btnEl.classList.toggle('open', !isOpen);
+            if (!isOpen && textarea) {
+                setTimeout(() => textarea.focus(), 350);
+            }
+        }
+
+        function handleNoteSave(businessName, btnEl) {
+            const safeId = escapeId(businessName);
+            const textarea = document.getElementById(`notes-textarea-${safeId}`);
+            const noteBtn = document.getElementById(`notes-btn-${safeId}`);
+            if (!textarea) return;
+            saveNote(businessName, textarea.value.trim());
+            const hasNote = textarea.value.trim().length > 0;
+            if (noteBtn) {
+                noteBtn.classList.toggle('has-note', hasNote);
+                noteBtn.title = hasNote ? 'Observação salva ✓' : 'Adicionar observação';
+            }
+            btnEl.classList.add('saved');
+            btnEl.textContent = '✓ Salvo';
+            setTimeout(() => {
+                btnEl.classList.remove('saved');
+                btnEl.textContent = 'Salvar';
+            }, 1800);
+        }
+
         function updateDashboardStats() {
             const state = getSavedState();
             let total = leadsData.length;
@@ -1143,6 +1329,10 @@
                 const hasSite = state.interest === 'ja-tem';
                 const cellStyle = !hasSite ? 'style="background: rgba(16, 185, 129, 0.08); border-left: 3px solid var(--accent-teal);"' : '';
 
+                const existingNote = getNote(name);
+                const hasNote = existingNote.length > 0;
+                const escapedName = name.replace(/'/g, "\\'").replace(/`/g, '\\`');
+
                 tr.innerHTML = `
                     <td onclick="event.stopPropagation()" ${cellStyle}>
                         <div class="call-cell-content">
@@ -1160,6 +1350,15 @@
                             </div>
                         </div>
                     </td>
+                    <td onclick="event.stopPropagation()" style="text-align:center; padding: 10px 8px;">
+                        <button
+                            id="notes-btn-${safeId}"
+                            class="notes-btn ${hasNote ? 'has-note' : ''}"
+                            title="${hasNote ? 'Ver/editar observação' : 'Adicionar observação'}"
+                            onclick="toggleNotesPanel('${name.replace(/'/g, "\\'")}', this)">
+                            📝
+                        </button>
+                    </td>
                     <td>${badge}</td>
                     <td style="font-weight: 600; color: #fff;">${item['Nome do Negócio'] || ''}</td>
                     <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${ownerFormatted}</td>
@@ -1169,6 +1368,34 @@
                     <td>${item['Bairro'] || ''}</td>
                 `;
                 tbody.appendChild(tr);
+
+                // Notes sub-row
+                const notesRow = document.createElement('tr');
+                notesRow.className = 'notes-row';
+                const notesTd = document.createElement('td');
+                notesTd.colSpan = 9;
+                notesTd.innerHTML = `
+                    <div id="notes-panel-${safeId}" class="notes-panel">
+                        <div class="notes-panel-inner">
+                            <div class="notes-panel-content" onclick="event.stopPropagation()">
+                                <span class="notes-panel-label">📝 Obs.</span>
+                                <textarea
+                                    id="notes-textarea-${safeId}"
+                                    class="notes-textarea"
+                                    placeholder="Adicione observações sobre este lead..."
+                                    rows="3"
+                                >${existingNote}</textarea>
+                                <button
+                                    class="notes-save-btn"
+                                    onclick="handleNoteSave('${name.replace(/'/g, "\\'")}', this)">
+                                    Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                notesRow.appendChild(notesTd);
+                tbody.appendChild(notesRow);
             });
         }
 
