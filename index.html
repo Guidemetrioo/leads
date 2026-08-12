@@ -1113,6 +1113,10 @@
                 const safeId = escapeId(name);
                 const waUrl = buildWaUrl(phone, name, niche);
 
+                const existingNote = getNote(name);
+                const hasNote = existingNote.length > 0;
+                const escapedName = name.replace(/'/g, "\\'").replace(/`/g, '\\`');
+
                 tr.innerHTML = `
                     <td onclick="event.stopPropagation()">
                         <div class="call-cell-content">
@@ -1134,6 +1138,15 @@
                             </div>
                         </div>
                     </td>
+                    <td onclick="event.stopPropagation()" style="text-align:center; padding: 10px 8px;">
+                        <button
+                            id="notes-btn-${safeId}"
+                            class="notes-btn ${hasNote ? 'has-note' : ''}"
+                            title="${hasNote ? 'Ver/editar observação' : 'Adicionar observação'}"
+                            onclick="toggleNotesPanel('${name.replace(/'/g, "\\'")}', this)">
+                            📝
+                        </button>
+                    </td>
                     <td>${badge}</td>
                     <td style="font-weight: 600; color: #fff;">${name}</td>
                     <td onclick="event.stopPropagation()">
@@ -1146,6 +1159,34 @@
                     <td>${item['Bairro'] || ''}</td>
                 `;
                 tbody.appendChild(tr);
+
+                // Notes sub-row
+                const notesRow = document.createElement('tr');
+                notesRow.className = 'notes-row';
+                const notesTd = document.createElement('td');
+                notesTd.colSpan = 9;
+                notesTd.innerHTML = `
+                    <div id="notes-panel-${safeId}" class="notes-panel">
+                        <div class="notes-panel-inner">
+                            <div class="notes-panel-content" onclick="event.stopPropagation()">
+                                <span class="notes-panel-label">📝 Obs.</span>
+                                <textarea
+                                    id="notes-textarea-${safeId}"
+                                    class="notes-textarea"
+                                    placeholder="Adicione observações sobre este lead..."
+                                    rows="3"
+                                >${existingNote}</textarea>
+                                <button
+                                    class="notes-save-btn"
+                                    onclick="handleNoteSave('${name.replace(/'/g, "\\'")}', this)">
+                                    Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                notesRow.appendChild(notesTd);
+                tbody.appendChild(notesRow);
             });
         }
 
