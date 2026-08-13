@@ -473,6 +473,52 @@
             border-color: var(--accent-blue);
         }
 
+        /* Responsible (Guilherme / Rafael) selector */
+        .resp-cell-content {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-start;
+        }
+
+        .resp-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .resp-select {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(139, 92, 246, 0.35);
+            color: #c4b5fd;
+            padding: 5px 9px;
+            border-radius: 7px;
+            font-size: 0.82rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            min-width: 115px;
+        }
+
+        .resp-select:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+        }
+
+        .resp-select.assigned-guilherme {
+            border-color: rgba(59, 130, 246, 0.6);
+            color: #93c5fd;
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .resp-select.assigned-rafael {
+            border-color: rgba(249, 115, 22, 0.6);
+            color: #fdba74;
+            background: rgba(249, 115, 22, 0.12);
+        }
+
         /* Action Buttons */
         .btn-wa-action {
             display: inline-flex;
@@ -811,6 +857,7 @@
                             <th>Telefone / Contato</th>
                             <th>WhatsApp</th>
                             <th>Interruptor / Controle</th>
+                            <th>Responsável</th>
                             <th>Nicho</th>
                             <th>Nome do Negócio</th>
                             <th>Proprietário / Dono</th>
@@ -943,6 +990,39 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateMap));
             } catch (e) {}
             updateDashboardStats();
+        }
+
+        // Responsible (Guilherme / Rafael) state
+        const RESP_KEY = 'nexthub_leads_responsible';
+
+        function getResponsibleState(name) {
+            try {
+                const stored = localStorage.getItem(RESP_KEY);
+                const map = stored ? JSON.parse(stored) : {};
+                return map[name] || '';
+            } catch (e) { return ''; }
+        }
+
+        function updateResponsibleState(name, responsible) {
+            try {
+                const stored = localStorage.getItem(RESP_KEY);
+                const map = stored ? JSON.parse(stored) : {};
+                map[name] = responsible || '';
+                localStorage.setItem(RESP_KEY, JSON.stringify(map));
+            } catch (e) {}
+        }
+
+        function handleResponsibleChange(event, name) {
+            event.stopPropagation();
+            const val = event.target.value;
+            updateResponsibleState(name, val);
+            const safeId = escapeId(name);
+            const sel = document.getElementById('resp-select-' + safeId);
+            if (sel) {
+                sel.className = 'resp-select';
+                if (val === 'guilherme') sel.classList.add('assigned-guilherme');
+                else if (val === 'rafael') sel.classList.add('assigned-rafael');
+            }
         }
 
         function escapeId(name) {
@@ -1172,6 +1252,9 @@
                     ? `<a href="${waUrl}" target="_blank" class="btn-wa-action">💬 WhatsApp</a>` 
                     : `<span style="color: #6b7280; font-size: 0.8rem; font-style: italic;">Sem WhatsApp</span>`;
 
+                const responsible = getResponsibleState(name);
+                const respClass = responsible === 'guilherme' ? ' assigned-guilherme' : responsible === 'rafael' ? ' assigned-rafael' : '';
+
                 tr.innerHTML = `
                     <td>${phoneFormatted}</td>
                     <td onclick="event.stopPropagation()">${waBtnHtml}</td>
@@ -1193,6 +1276,16 @@
                                     <option value="ja-tem" ${state.interest === 'ja-tem' ? 'selected' : ''}>💼 Já tem Sistema / Site</option>
                                 </select>
                             </div>
+                        </div>
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <div class="resp-cell-content">
+                            <span class="resp-label">👤 Responsável</span>
+                            <select id="resp-select-${safeId}" class="resp-select${respClass}" onchange="handleResponsibleChange(event, '${name.replace(/'/g, "\\'")}')">
+                                <option value="" ${responsible === '' ? 'selected' : ''}>— Nenhum —</option>
+                                <option value="guilherme" ${responsible === 'guilherme' ? 'selected' : ''}>🔵 Guilherme</option>
+                                <option value="rafael" ${responsible === 'rafael' ? 'selected' : ''}>🟠 Rafael</option>
+                            </select>
                         </div>
                     </td>
                     <td>${badge}</td>
