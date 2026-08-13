@@ -726,6 +726,36 @@
             align-items: center;
             justify-content: center;
         }
+
+        .db-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #10b981;
+            backdrop-filter: blur(8px);
+            transition: all 0.3s ease;
+        }
+
+        .db-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: dbPulse 2s infinite;
+        }
+
+        @keyframes dbPulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+            100% { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -735,9 +765,15 @@
             <h1>NextHub</h1>
             <p>Lista de Prospecção Zona Leste SP &mdash; Google Contacts Integration</p>
         </div>
-        <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchTab('leads')">Leads (372)</button>
-            <button class="tab-btn" onclick="switchTab('guide')">Como Usar</button>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div id="dbStatusBadge" class="db-status-badge">
+                <span class="db-dot"></span>
+                <span id="dbStatusText">🔥 Firebase Firestore</span>
+            </div>
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchTab('leads')">Leads (372)</button>
+                <button class="tab-btn" onclick="switchTab('guide')">Como Usar</button>
+            </div>
         </div>
     </header>
 
@@ -989,6 +1025,9 @@
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateMap));
             } catch (e) {}
+            if (typeof window.saveLeadStateToFirestore === 'function') {
+                window.saveLeadStateToFirestore(name, called, interest);
+            }
             updateDashboardStats();
         }
 
@@ -1010,6 +1049,9 @@
                 map[name] = responsible || '';
                 localStorage.setItem(RESP_KEY, JSON.stringify(map));
             } catch (e) {}
+            if (typeof window.saveResponsibleToFirestore === 'function') {
+                window.saveResponsibleToFirestore(name, responsible);
+            }
         }
 
         function handleResponsibleChange(event, name) {
@@ -1580,6 +1622,146 @@
             if (e.key === STORAGE_KEY || e.key === RESP_KEY) {
                 updateDashboardStats();
                 filterData();
+            }
+        });
+    </script>
+
+    <!-- Firebase Cloud Firestore Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAvYT39wYm61v_NLTggauMNPvXGLNGvtOo",
+            authDomain: "leads-cf64d.firebaseapp.com",
+            projectId: "leads-cf64d",
+            storageBucket: "leads-cf64d.firebasestorage.app",
+            messagingSenderId: "874397868126",
+            appId: "1:874397868126:web:0dbf7402a6a83020bd94cf",
+            measurementId: "G-05EFNF6DB3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        function getDocId(name) {
+            return encodeURIComponent(name).replace(/\./g, '%2E');
+        }
+
+        window.saveLeadStateToFirestore = async function(name, called, interest) {
+            try {
+                const docRef = doc(db, "leads_status", getDocId(name));
+                await setDoc(docRef, {
+                    name: name,
+                    called: !!called,
+                    interest: interest || '',
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            } catch (err) {
+                console.error("Erro ao salvar estado no Firestore:", err);
+            }
+        };
+
+        window.saveResponsibleToFirestore = async function(name, responsible) {
+            try {
+                const docRef = doc(db, "leads_status", getDocId(name));
+                await setDoc(docRef, {
+                    name: name,
+                    responsible: responsible || '',
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            } catch (err) {
+                console.error("Erro ao salvar responsável no Firestore:", err);
+            }
+        };
+
+        // Auto-sync any existing local state to Firestore on startup
+        async function syncExistingLocalStateToFirestore() {
+            try {
+                const storedCall = localStorage.getItem(STORAGE_KEY);
+                if (storedCall) {
+                    const callMap = JSON.parse(storedCall);
+                    for (const [name, state] of Object.entries(callMap)) {
+                        if (state && (state.called || state.interest)) {
+                            await window.saveLeadStateToFirestore(name, state.called, state.interest);
+                        }
+                    }
+                }
+                const storedResp = localStorage.getItem(RESP_KEY);
+                if (storedResp) {
+                    const respMap = JSON.parse(storedResp);
+                    for (const [name, resp] of Object.entries(respMap)) {
+                        if (resp) {
+                            await window.saveResponsibleToFirestore(name, resp);
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Erro no auto-sync de dados locais:", e);
+            }
+        }
+
+        // Run initial auto-sync once connected
+        syncExistingLocalStateToFirestore();
+
+        // Real-time synchronization listener across devices
+        onSnapshot(collection(db, "leads_status"), (snapshot) => {
+            let callStateMap = {};
+            try {
+                const storedCall = localStorage.getItem(STORAGE_KEY);
+                if (storedCall) callStateMap = JSON.parse(storedCall);
+            } catch(e) {}
+
+            let respMap = {};
+            try {
+                const storedResp = localStorage.getItem(RESP_KEY);
+                if (storedResp) respMap = JSON.parse(storedResp);
+            } catch(e) {}
+
+            let hasUpdates = false;
+
+            snapshot.docs.forEach((docSnap) => {
+                const data = docSnap.data();
+                if (data && data.name) {
+                    const leadName = data.name;
+                    if (data.called !== undefined || data.interest !== undefined) {
+                        const currentVal = callStateMap[leadName] || {};
+                        if (currentVal.called !== data.called || currentVal.interest !== data.interest) {
+                            callStateMap[leadName] = {
+                                called: !!data.called,
+                                interest: data.interest || ''
+                            };
+                            hasUpdates = true;
+                        }
+                    }
+                    if (data.responsible !== undefined) {
+                        if (respMap[leadName] !== data.responsible) {
+                            respMap[leadName] = data.responsible || '';
+                            hasUpdates = true;
+                        }
+                    }
+                }
+            });
+
+            if (hasUpdates) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(callStateMap));
+                localStorage.setItem(RESP_KEY, JSON.stringify(respMap));
+                if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                if (typeof filterData === 'function') filterData();
+            }
+
+            const badgeText = document.getElementById('dbStatusText');
+            if (badgeText) badgeText.textContent = "🔥 Firestore Conectado";
+        }, (error) => {
+            console.error("Erro na escuta do Firestore:", error);
+            const badgeText = document.getElementById('dbStatusText');
+            if (badgeText) {
+                badgeText.textContent = "⚠️ Modo Local";
+                if (badgeText.parentElement) {
+                    badgeText.parentElement.style.color = "#f59e0b";
+                    badgeText.parentElement.style.borderColor = "rgba(245, 158, 11, 0.3)";
+                    badgeText.parentElement.style.background = "rgba(245, 158, 11, 0.1)";
+                }
             }
         });
     </script>
