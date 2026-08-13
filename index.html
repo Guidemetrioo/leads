@@ -1574,6 +1574,14 @@
 
         updateDashboardStats();
         renderTable(leadsData);
+
+        // Sync across browser tabs in real-time
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY || e.key === RESP_KEY) {
+                updateDashboardStats();
+                filterData();
+            }
+        });
     </script>
 </body>
 </html>
